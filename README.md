@@ -23,12 +23,43 @@ Each folder and file in this project demonstrates a real DevOps practice.
 
 ## Prerequisites
 
-Install these tools first:
-
+### On Windows
 - [Git](https://git-scm.com/downloads)
 - [Docker Desktop](https://www.docker.com/products/docker-desktop/)
-- [Python 3.12+](https://www.python.org/downloads/) (for running tests locally)
-- A code editor — [VS Code](https://code.visualstudio.com/) recommended
+- [Python 3.12+](https://www.python.org/downloads/)
+- [VS Code](https://code.visualstudio.com/)
+
+### On Ubuntu 22.04 (recommended for learning — Docker runs natively)
+
+```bash
+# 1. Update packages
+sudo apt update && sudo apt upgrade -y
+
+# 2. Install Git and Python
+sudo apt install -y git python3 python3-pip make curl
+
+# 3. Install Docker Engine (NOT Docker Desktop)
+sudo apt install -y ca-certificates gnupg
+sudo install -m 0755 -d /etc/apt/keyrings
+curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" | sudo tee /etc/apt/sources.list.d/docker.list
+sudo apt update
+sudo apt install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+
+# 4. Run Docker without sudo (log out and back in after this)
+sudo usermod -aG docker $USER
+newgrp docker
+
+# 5. Verify everything is installed
+docker --version          # Docker version 24+
+docker compose version    # Docker Compose version v2+
+git --version
+python3 --version
+make --version
+```
+
+> **Note:** On Ubuntu use `python3` and `pip3` instead of `python` and `pip`.
+> Update the Makefile `test` target if needed: replace `pip` with `pip3`.
 
 ---
 

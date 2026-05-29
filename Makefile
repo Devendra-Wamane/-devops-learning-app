@@ -33,8 +33,8 @@ logs:
 	docker compose logs -f
 
 test:
-	pip install pytest
-	cd app && pytest tests/ -v
+	pip3 install pytest 2>/dev/null || pip install pytest
+	cd app && python3 -m pytest tests/ -v 2>/dev/null || python -m pytest tests/ -v
 
 shell:
 	docker exec -it taskapp /bin/sh
@@ -43,4 +43,4 @@ clean:
 	docker compose down -v --rmi local
 
 health:
-	curl -s http://localhost:5000/health | python -m json.tool
+	curl -s http://localhost:5000/health | python3 -m json.tool 2>/dev/null || curl -s http://localhost:5000/health | python -m json.tool
