@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>DevOps Task Manager</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Segoe UI', sans-serif; background: #f0f4f8; color: #333; }
+    header {
+      background: #1a1a2e; color: white; padding: 16px 24px;
+      display: flex; justify-content: space-between; align-items: center;
+    }
+    header h1 { font-size: 1.4rem; }
+    .badge {
+      background: #e94560; padding: 4px 10px; border-radius: 12px;
+      font-size: 0.75rem; font-weight: 600;
+    }
+    .env-badge {
+      background: #16213e; border: 1px solid #0f3460;
+      padding: 4px 10px; border-radius: 12px; font-size: 0.75rem;
+    }
+    main { max-width: 700px; margin: 40px auto; padding: 0 16px; }
+    .card {
+      background: white; border-radius: 10px;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.08); padding: 24px; margin-bottom: 24px;
+    }
+    .card h2 { font-size: 1rem; color: #555; margin-bottom: 16px; }
+    .input-row { display: flex; gap: 10px; }
+    input[type="text"] {
+      flex: 1; padding: 10px 14px; border: 1px solid #ddd;
+      border-radius: 6px; font-size: 0.95rem; outline: none;
+      transition: border 0.2s;
+    }
+    input[type="text"]:focus { border-color: #e94560; }
+    button {
+      padding: 10px 20px; background: #e94560; color: white;
+      border: none; border-radius: 6px; cursor: pointer;
+      font-size: 0.95rem; transition: background 0.2s;
+    }
+    button:hover { background: #c73652; }
+    button.secondary {
+      background: #0f3460; font-size: 0.8rem; padding: 6px 12px;
+    }
+    button.secondary:hover { background: #16213e; }
+    button.danger { background: #aaa; }
+    button.danger:hover { background: #888; }
+    ul { list-style: none; }
+    li {
+      display: flex; align-items: center; gap: 12px;
+      padding: 12px 0; border-bottom: 1px solid #f0f0f0;
+    }
+    li:last-child { border-bottom: none; }
+    li.done span { text-decoration: line-through; color: #aaa; }
+    li span { flex: 1; font-size: 0.95rem; }
+    .meta { font-size: 0.75rem; color: #aaa; display: block; }
+    .status-grid {
+      display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px;
+    }
+    .stat {
+      background: #f8f9fa; border-radius: 8px; padding: 16px; text-align: center;
+    }
+    .stat .value { font-size: 2rem; font-weight: 700; color: #1a1a2e; }
+    .stat .label { font-size: 0.75rem; color: #888; margin-top: 4px; }
+    #health-status { margin-top: 12px; font-size: 0.85rem; }
+    .green { color: #27ae60; font-weight: 600; }
+    .red { color: #e94560; font-weight: 600; }
+  </style>
+</head>
+<body>
+<header>
+  <h1>DevOps Task Manager</h1>
+  <div style="display:flex;gap:10px;align-items:center">
+    <span class="env-badge">{{ environment }}</span>
+    <span class="badge">v{{ version }}</span>
+  </div>
+</header>
+
+<main>
+  <!-- Stats -->
+  <div class="card">
+    <h2>Dashboard</h2>
+    <div class="status-grid">
+      <div class="stat"><div class="value" id="total">0</div><div class="label">Total Tasks</div></div>
+      <div class="stat"><div class="value" id="done-count">0</div><div class="label">Completed</div></div>
+      <div class="stat"><div class="value" id="pending">0</div><div class="label">Pending</div></div>
+    </div>
+    <div id="health-status">Checking health endpoint...</div>
+  </div>
+
+  <!-- Add Task -->
+  <div class="card">
+    <h2>Add New Task</h2>
+    <div class="input-row">
+      <input type="text" id="task-input" placeholder="Enter a task..." />
+      <button onclick="addTask()">Add Task</button>
+    </div>
+  </div>
+
+  <!-- Task List -->
+  <div class="card">
+    <h2>Tasks</h2>
+    <ul id="task-list"><li><span style="color:#aaa">Loading tasks...</span></li></ul>
+  </div>
+</main>
+
+<script>
+  async function fetchTasks() {
+    const res = await fetch('/api/tasks');
+    const tasks = await res.json();
+    renderTasks(tasks);
+    updateStats(tasks);
+  }
+
+  function renderTasks(tasks) {
+    const ul = document.getElementById('task-list');
+    if (!tasks.length) {
+      ul.innerHTML = '<li><span style="color:#aaa">No tasks yet. Add one above!</span></li>';
+      return;
+    }
+    ul.innerHTML = tasks.map(t => `
+      <li class="${t.done ? 'done' : ''}">
+        <input type="checkbox" ${t.done ? 'checked' : ''} onchange="toggleTask(${t.id}, this.checked)" />
+        <span>${t.title}<em class="meta">Created: ${new Date(t.created_at).toLocaleString()}</em></span>
+        <button class="danger" onclick="deleteTask(${t.id})">Delete</button>
+      </li>
+    `).join('');
+  }
+
+  function updateStats(tasks) {
+    const done = tasks.filter(t => t.done).length;
+    document.getElementById('total').textContent = tasks.length;
+    document.getElementById('done-count').textContent = done;
+    document.getElementById('pending').textContent = tasks.length - done;
+  }
+
+  async function addTask() {
+    const input = document.getElementById('task-input');
+    const title = input.value.trim();
+    if (!title) return;
+    await fetch('/api/tasks', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title })
+    });
+    input.value = '';
+    fetchTasks();
+  }
+
+  async function toggleTask(id, done) {
+    await fetch(`/api/tasks/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ done })
+    });
+    fetchTasks();
+  }
+
+  async function deleteTask(id) {
+    await fetch(`/api/tasks/${id}`, { method: 'DELETE' });
+    fetchTasks();
+  }
+
+  async function checkHealth() {
+    try {
+      const res = await fetch('/health');
+      const data = await res.json();
+      document.getElementById('health-status').innerHTML =
+        `Health: <span class="green">● ${data.status}</span> &nbsp; Version: <strong>${data.version}</strong> &nbsp; Env: <strong>${data.environment}</strong>`;
+    } catch {
+      document.getElementById('health-status').innerHTML =
+        `Health: <span class="red">● unreachable</span>`;
+    }
+  }
+
+  document.getElementById('task-input').addEventListener('keydown', e => {
+    if (e.key === 'Enter') addTask();
+  });
+
+  fetchTasks();
+  checkHealth();
+</script>
+</body>
+</html>
