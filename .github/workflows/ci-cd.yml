@@ -31,7 +31,8 @@ jobs:
           pip install pytest
 
       - name: Run tests
-        run: pytest app/tests/ -v          # tests live inside app/tests/
+        working-directory: app
+        run: python -m pytest tests/ -v
         env:
           ENVIRONMENT: test
 

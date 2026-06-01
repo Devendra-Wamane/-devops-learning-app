@@ -10,15 +10,20 @@ APP_VERSION = os.getenv("APP_VERSION", "1.0.0")
 ENVIRONMENT = os.getenv("ENVIRONMENT", "development")
 
 
+def get_data_file():
+    return os.getenv("DATA_FILE", DATA_FILE)
+
+
 def load_tasks():
-    if not os.path.exists(DATA_FILE):
+    data_file = get_data_file()
+    if not os.path.exists(data_file):
         return []
-    with open(DATA_FILE, "r") as f:
+    with open(data_file, "r") as f:
         return json.load(f)
 
 
 def save_tasks(tasks):
-    with open(DATA_FILE, "w") as f:
+    with open(get_data_file(), "w") as f:
         json.dump(tasks, f, indent=2)
 
 
