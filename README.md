@@ -18,6 +18,7 @@ Each folder and file in this project demonstrates a real DevOps practice.
 | Automated Testing | `app/tests/test_app.py` |
 | Health Checks | `/health` endpoint + Dockerfile HEALTHCHECK |
 | Production vs Dev environments | `docker-compose.prod.yml` |
+| EC2 + ECR deployment | GitHub Actions deploy job + Amazon ECR |
 
 ---
 
@@ -83,6 +84,53 @@ docker compose logs -f
 # 5. Stop everything
 docker compose down
 ```
+
+---
+
+## Deploying to EC2 with Amazon ECR
+
+This project is designed to deploy as a container to a single EC2 instance.
+GitHub Actions builds the image, pushes it to Amazon ECR, then SSHes into the EC2 host to pull the new image and restart the stack.
+
+### What you need in AWS
+
+1. An EC2 instance with Docker and Docker Compose installed.
+2. An Amazon ECR repository for the image.
+3. Security group inbound rules for port 80, and 443 if you want TLS.
+4. An IAM role or AWS credentials on the EC2 host that can read from ECR.
+
+### GitHub secrets to add
+
+1. `AWS_ACCESS_KEY_ID`
+2. `AWS_SECRET_ACCESS_KEY`
+3. `AWS_REGION`
+4. `ECR_REGISTRY` such as `123456789012.dkr.ecr.us-east-1.amazonaws.com`
+5. `EC2_HOST`
+6. `EC2_USER`
+7. `EC2_SSH_KEY`
+
+### How the flow works
+
+1. Push code to `main`.
+2. The test job runs first.
+3. The build job logs in to ECR and pushes the image tagged with the commit SHA and `latest`.
+4. The deploy job copies the Compose files to EC2, logs in to ECR on the host, pulls the new image, and restarts the stack.
+5. The workflow checks `http://localhost/health` on the EC2 host before finishing.
+
+### EC2 one-time setup
+
+1. Install Docker and the Docker Compose plugin.
+2. Create the deploy directory, for example `/home/ec2-user/devops-learning-app`.
+3. Make sure the EC2 user can run Docker.
+4. If you are using the AWS CLI on EC2, confirm it can authenticate to ECR.
+
+### Production Compose behavior
+
+The production override uses the image from ECR instead of building locally.
+That means EC2 always pulls the exact image version that GitHub Actions built.
+Task data is stored at `/data/tasks.json` inside the container so image updates do not overwrite the application code layer.
+
+If you want, you can later add an Application Load Balancer, HTTPS, or blue/green deployment.
 
 ---
 

@@ -9,6 +9,10 @@ on:
 
 env:
   IMAGE_NAME: devops-task-app
+  AWS_REGION: ${{ secrets.AWS_REGION }}
+  ECR_REGISTRY: ${{ secrets.ECR_REGISTRY }}
+  EC2_HOST: ${{ secrets.EC2_HOST }}
+  EC2_USER: ${{ secrets.EC2_USER }}
 
 jobs:
   # ── Job 1: Lint & Test ──────────────────────────────────────────────────────
@@ -41,20 +45,40 @@ jobs:
     name: Build Docker Image
     runs-on: ubuntu-latest
     needs: test          # only builds if tests pass
+    if: github.event_name == 'push'
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: Log in to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
       - name: Set image version tag
-        run: echo "VERSION=$(echo $GITHUB_SHA | cut -c1-7)" >> $GITHUB_ENV
+        run: |
+          echo "VERSION=$(echo $GITHUB_SHA | cut -c1-7)" >> $GITHUB_ENV
+          echo "ECR_IMAGE=${{ steps.login-ecr.outputs.registry }}/$IMAGE_NAME" >> $GITHUB_ENV
 
       - name: Build Docker image
-        run: docker build -t $IMAGE_NAME:$VERSION -t $IMAGE_NAME:latest .
+        run: |
+          docker build -t $ECR_IMAGE:$VERSION -t $ECR_IMAGE:latest .
+
+      - name: Push Docker image to ECR
+        run: |
+          docker push $ECR_IMAGE:$VERSION
+          docker push $ECR_IMAGE:latest
 
       - name: Smoke test the container
         run: |
-          docker run -d --name smoke-test -p 5000:5000 $IMAGE_NAME:latest
+          docker run -d --name smoke-test -p 5000:5000 $ECR_IMAGE:latest
           sleep 5
           curl --fail http://localhost:5000/health
           docker stop smoke-test
@@ -73,16 +97,30 @@ jobs:
       - name: Set version
         run: echo "VERSION=$(echo $GITHUB_SHA | cut -c1-7)" >> $GITHUB_ENV
 
-      # In a real project, replace this step with:
-      # - Push image to Docker Hub / ECR / GCR
-      # - SSH into server and docker compose pull + up
-      # - Or deploy to Kubernetes with kubectl
-      - name: Simulate deployment
-        run: |
-          echo "Deploying image $IMAGE_NAME:$VERSION to production..."
-          echo "In a real pipeline you would:"
-          echo "  1. Push image: docker push registry/$IMAGE_NAME:$VERSION"
-          echo "  2. SSH to server and run: docker compose up -d"
-          echo "  3. Wait for health check to pass"
-          echo "  4. Send Slack/email notification"
-          echo "Deploy complete!"
+      - name: Copy deployment files to EC2
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          source: "docker-compose.yml,docker-compose.prod.yml,nginx/nginx.conf"
+          target: "/home/${{ secrets.EC2_USER }}/devops-learning-app"
+
+      - name: Deploy on EC2
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          envs: IMAGE_NAME,VERSION,AWS_REGION,ECR_REGISTRY
+          script: |
+            set -e
+            cd /home/${{ secrets.EC2_USER }}/devops-learning-app
+            aws ecr get-login-password --region "$AWS_REGION" | docker login --username AWS --password-stdin "$ECR_REGISTRY"
+            export APP_VERSION="$VERSION"
+            export ECR_REGISTRY="$ECR_REGISTRY"
+            export IMAGE_NAME="$IMAGE_NAME"
+            export IMAGE_TAG="$VERSION"
+            docker compose -f docker-compose.yml -f docker-compose.prod.yml pull
+            docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --remove-orphans --no-build
+            curl --fail http://localhost/health

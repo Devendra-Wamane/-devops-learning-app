@@ -17,7 +17,7 @@ services:
     ports:
       - "5000:5000"         # Direct access (dev only — skip nginx)
     volumes:
-      - task_data:/app      # Persist tasks.json
+      - task_data:/data     # Persist tasks.json without masking app code
     networks:
       - app-network
     restart: unless-stopped

@@ -1,11 +1,11 @@
 from flask import Flask, request, jsonify, render_template
 import os
 import json
-from datetime import datetime
+from datetime import datetime, timezone
 
 app = Flask(__name__)
 
-DATA_FILE = os.getenv("DATA_FILE", "tasks.json")
+DATA_FILE = os.getenv("DATA_FILE", "/data/tasks.json")
 APP_VERSION = os.getenv("APP_VERSION", "1.0.0")
 ENVIRONMENT = os.getenv("ENVIRONMENT", "development")
 
@@ -53,7 +53,7 @@ def create_task():
         "id": len(tasks) + 1,
         "title": data["title"],
         "done": False,
-        "created_at": datetime.utcnow().isoformat(),
+        "created_at": datetime.now(timezone.utc).isoformat(),
     }
     tasks.append(task)
     save_tasks(tasks)
